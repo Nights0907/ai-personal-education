@@ -1,0 +1,551 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contract_version": "1.1.0",
+  "description": "应用层工具契约目录。注册 Eino Tool 时抽取 parameters 并展开 #/$defs 引用，不将整个目录或业务 metadata 作为供应商 function schema。输出契约为应用定义，非 SDK 内置能力。",
+  "tools": [
+    {
+      "name": "get_task_input",
+      "description": "读取服务端绑定的当前任务输入、模式、可用资源、当前用户允许访问的来源记录和原动作；身份及任务 ID 不由模型传入。",
+      "modes": [
+        "SOLVE",
+        "TUTOR_TURN",
+        "DIAGNOSE"
+      ],
+      "effect": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": "mode, input_type, question_text（服务端冻结原文）, attempt_text, source_version/hash, assets[{asset_id,purpose,ocr_available}], source_records[{record_id,source_type,canonical_text,source_blocks}], trusted_binding。身份、任务、当前来源版本由服务端绑定，不接受模型覆盖；数据库 ID 和 OSS 路径不由模型生成。"
+    },
+    {
+      "name": "recognize_input_image",
+      "description": "通过阿里云 OCR 识别当前任务已绑定的图片，只返回文字、公式和块引用，不向模型返回原图或 URL；优先复用已有结果。",
+      "modes": [
+        "SOLVE"
+      ],
+      "effect": "external_metered_cached",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "asset_id"
+        ],
+        "additionalProperties": false
+      },
+      "result": "ocr_result_id, canonical_text, source_blocks, source_record_id, source_version/hash, provider_request_id, cache_hit。asset_id 必须属于当前输入；OCR 原响应与原图 object_key 由服务端资产层保存，不在模型参数中传递。相同资源哈希与 OCR 配置复用识别结果。"
+    },
+    {
+      "name": "get_knowledge_catalog",
+      "description": "读取当前版本高中数学知识目录与受控能力标签，用于标注；可按主题缩小返回范围，不具有 RAG 相似题检索能力。",
+      "modes": [
+        "SOLVE",
+        "DIAGNOSE"
+      ],
+      "effect": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "topic_codes": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "topic_codes"
+        ],
+        "additionalProperties": false
+      },
+      "result": "outline_version, topics, knowledge_nodes[{code,name,definition,is_core}], capabilities[{code,name,definition}], available_topic_codes。topic_codes=[] 时先返回主题及轻量目录，未知主题报 UNKNOWN_CODE。"
+    },
+    {
+      "name": "get_question_context",
+      "description": "读取当前诊断任务绑定的题目、固定解答版本和指定作答来源；不能查询任意题目或跨用户数据。",
+      "modes": [
+        "DIAGNOSE"
+      ],
+      "effect": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": "question_id, solution_id, question, solution, source_records, allowed_source_record_ids。来源包含规范文本、图像 OCR 块或引导消息引用以及真实发生时间。"
+    },
+    {
+      "name": "get_tutor_context",
+      "description": "读取服务端当前引导会话的步骤、固定解答版本、实际动作、轮次、提示和状态版本；学生未选步骤时已绑定第一步。",
+      "modes": [
+        "TUTOR_TURN"
+      ],
+      "effect": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": "session_id, state_version, solution_id, start_step_id, current_step_id, question, solution, action, student_input, hint_level, retry_count, recent_turns。EXITED 或失效版本返回 CONTEXT_STALE。"
+    },
+    {
+      "name": "validate_solution",
+      "description": "校验单题结构、来源一致性、答案/解析/步骤/标签，并进行必要的数学复核；通过后保存绑定当前运行和输入版本的不可变草稿。结构校验通过不等于数学正确；不直接写正式题目。",
+      "modes": [
+        "SOLVE"
+      ],
+      "effect": "draft_write_with_optional_model_review",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "candidate": {
+            "$ref": "#/$defs/SolveCandidate"
+          }
+        },
+        "required": [
+          "candidate"
+        ],
+        "additionalProperties": false
+      },
+      "result": "passed, draft_id（未通过为 null）, issues[{code,path,message}], review_status。检查步骤序号连续、小问引用有效、标签有效、原文来源未变。数学复核不确定时 passed=false；草稿保存 payload_hash、来源版本与校验器版本。"
+    },
+    {
+      "name": "finalize_solution",
+      "description": "事务提交当前 SOLVE 已校验的不可变草稿：题目/题目版本、解答、步骤、来源关联和业务回执一并成功。服务端填写题目/步骤 ID 与 OCR 路径；按逻辑任务幂等，成功为本模式终点。一期不写画像。",
+      "modes": [
+        "SOLVE"
+      ],
+      "effect": "transactional_terminal_write",
+      "return_directly": true,
+      "parameters": {
+        "$ref": "#/$defs/DraftRef"
+      },
+      "result": "committed, result_id, question_id, question_version_id, solution_id, step_ids, attempt_id（无作答为 null）, profile_status（一期 disabled）。任务取消、输入版本变化或租约失效则拒绝；重试返回已提交回执。正式展示从该回执对应的业务结果投影，不从自由文本解析。"
+    },
+    {
+      "name": "validate_tutor_turn",
+      "description": "校验本轮反馈、教学消息和迁移建议，绑定当前会话版本；通过返回不可变草稿，暂不推进步骤。",
+      "modes": [
+        "TUTOR_TURN"
+      ],
+      "effect": "draft_write",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "candidate": {
+            "$ref": "#/$defs/TutorCandidate"
+          }
+        },
+        "required": [
+          "candidate"
+        ],
+        "additionalProperties": false
+      },
+      "result": "passed, draft_id, issues。检查 assessment 与真实 action 匹配，complete 仅可用于允许完成的最后步骤；建议 advance 不等于服务端必然推进。"
+    },
+    {
+      "name": "finalize_tutor_turn",
+      "description": "事务提交已校验引导轮次，根据服务端状态机决定步骤迁移并安排必要证据诊断；版本冲突、退出或旧租约时拒绝。",
+      "modes": [
+        "TUTOR_TURN"
+      ],
+      "effect": "transactional_terminal_write",
+      "return_directly": true,
+      "parameters": {
+        "$ref": "#/$defs/DraftRef"
+      },
+      "result": "committed, result_id, session_id, turn_id, new_state_version, current_step_id, session_status, feedback, teacher_message；完成时含固定 solution_id，界面读取已有完整解答。"
+    },
+    {
+      "name": "validate_diagnosis",
+      "description": "校验候选证据属于真实学生作答，核对原文片段和知识/能力白名单；允许空数组，通过后生成不可变草稿。",
+      "modes": [
+        "DIAGNOSE"
+      ],
+      "effect": "draft_write",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "candidate": {
+            "$ref": "#/$defs/DiagnosisCandidate"
+          }
+        },
+        "required": [
+          "candidate"
+        ],
+        "additionalProperties": false
+      },
+      "result": "passed, draft_id, issues。来源须在当前任务 allowlist，quote 在 canonical_text 中按 occurrence_index 精确匹配，由服务端计算 UTF-8 字节偏移，不得引用教师消息证明学生薄弱。"
+    },
+    {
+      "name": "finalize_diagnosis",
+      "description": "事务提交候选证据并由业务规则去重聚合薄弱项，计算建议关注和最近出现时间；模型不能传入等级或修改学生资料。",
+      "modes": [
+        "DIAGNOSE"
+      ],
+      "effect": "transactional_terminal_write",
+      "return_directly": true,
+      "parameters": {
+        "$ref": "#/$defs/DraftRef"
+      },
+      "result": "committed, result_id, inserted_evidence_count, affected_profile_item_ids；空候选合法，不因证据为空失败。已删除题目不得复活证据。"
+    }
+  ],
+  "$defs": {
+    "DraftRef": {
+      "type": "object",
+      "properties": {
+        "draft_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "draft_id"
+      ],
+      "additionalProperties": false
+    },
+    "Question": {
+      "type": "object",
+      "properties": {
+        "stem": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30000
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "single_choice",
+            "multiple_choice",
+            "fill_blank",
+            "constructed_response"
+          ]
+        },
+        "difficulty": {
+          "type": "string",
+          "enum": [
+            "easy",
+            "medium",
+            "hard"
+          ]
+        },
+        "options": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "text"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "subquestions": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "text"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "stem",
+        "type",
+        "difficulty",
+        "options",
+        "subquestions"
+      ],
+      "additionalProperties": false
+    },
+    "Solution": {
+      "type": "object",
+      "properties": {
+        "answer": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "properties": {
+              "subquestion_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "content": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "subquestion_id",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "analysis": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 60,
+          "items": {
+            "type": "object",
+            "properties": {
+              "ordinal": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "subquestion_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "content": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "ordinal",
+              "subquestion_id",
+              "title",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "knowledge_points": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 15,
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": ["sets_logic","functions_derivatives","sequences","trigonometry","analytic_geometry","solid_geometry","probability_statistics","equations_inequalities"],
+                "description": "题目目录编码；不能使用学生画像中的topic_id，如SEQ_ARITHMETIC。"
+              },
+              "is_primary": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "is_primary"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "teacher_response": {
+          "type": "string",
+          "description": "面向学生的完整教师讲解，使用Markdown和LaTex公式。自然引出方法，连贯推导，给出结论和易错提醒；不使用答案/解析/解题步骤固定栏目。先生成此字段，随后生成结构化元数据，数值保持一致。"
+        }
+      },
+      "required": [
+        "answer",
+        "analysis",
+        "steps",
+        "knowledge_points"
+      ],
+      "additionalProperties": false
+    },
+    "SolveCandidate": {
+      "type": "object",
+      "properties": {
+        "question": {
+          "$ref": "#/$defs/Question"
+        },
+        "solution": {
+          "$ref": "#/$defs/Solution"
+        }
+      },
+      "required": [
+        "question",
+        "solution"
+      ],
+      "additionalProperties": false
+    },
+    "TutorCandidate": {
+      "type": "object",
+      "properties": {
+        "feedback": {
+          "type": "string",
+          "maxLength": 8000
+        },
+        "teacher_message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "assessment": {
+          "type": "string",
+          "enum": [
+            "correct",
+            "incorrect",
+            "partial",
+            "uncertain",
+            "not_applicable"
+          ]
+        },
+        "suggested_action": {
+          "type": "string",
+          "enum": [
+            "stay",
+            "advance",
+            "complete"
+          ]
+        }
+      },
+      "required": [
+        "feedback",
+        "teacher_message",
+        "assessment",
+        "suggested_action"
+      ],
+      "additionalProperties": false
+    },
+    "EvidenceCandidate": {
+      "type": "object",
+      "properties": {
+        "source_record_id": {
+          "type": "string"
+        },
+        "source_type": {
+          "type": "string",
+          "enum": [
+            "uploaded_attempt",
+            "tutoring"
+          ]
+        },
+        "occurrence_index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 1
+        },
+        "item_type": {
+          "type": "string",
+          "enum": [
+            "knowledge",
+            "capability"
+          ]
+        },
+        "item_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "impact": {
+          "type": "string",
+          "enum": [
+            "local",
+            "blocks_key_step"
+          ]
+        }
+      },
+      "required": [
+        "source_record_id",
+        "source_type",
+        "occurrence_index",
+        "quote",
+        "item_type",
+        "item_code",
+        "reason",
+        "impact"
+      ],
+      "additionalProperties": false
+    },
+    "DiagnosisCandidate": {
+      "type": "object",
+      "properties": {
+        "evidence": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/EvidenceCandidate"
+          }
+        }
+      },
+      "required": [
+        "evidence"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "observation_envelope": {
+    "description": "每个工具返回 JSON envelope；一般可修复错误作为工具 observation，执行中取消/退出及终结写入错误由运行时停止或接管重试。",
+    "fields": [
+      "ok",
+      "code",
+      "data",
+      "issues",
+      "retryable",
+      "request_id"
+    ],
+    "error_codes": [
+      "INVALID_ARGUMENT",
+      "UNKNOWN_CODE",
+      "INVALID_REFERENCE",
+      "CONTEXT_STALE",
+      "TASK_CANCELLED",
+      "LEASE_EXPIRED",
+      "DRAFT_EXPIRED",
+      "OCR_FAILED",
+      "MODEL_REVIEW_FAILED",
+      "VALIDATION_FAILED",
+      "BUDGET_EXCEEDED",
+      "MODE_NOT_ALLOWED"
+    ]
+  }
+}

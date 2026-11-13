@@ -1,0 +1,33 @@
+CREATE TABLE IF NOT EXISTS recall_plan (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ student_id VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+ status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+ daily_quota INT UNSIGNED NOT NULL DEFAULT 1,
+ send_hour TINYINT UNSIGNED NOT NULL DEFAULT 19,
+ timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Shanghai',
+ lease_token VARCHAR(36) NOT NULL DEFAULT '',
+ lease_until DATETIME(6) NOT NULL DEFAULT '1970-01-01',
+ next_attempt_at DATETIME(6) NOT NULL DEFAULT '1970-01-01',
+ last_run_date CHAR(10) CHARACTER SET ascii NOT NULL DEFAULT '',
+ created_at DATETIME(6) NOT NULL,
+ updated_at DATETIME(6) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE IF NOT EXISTS recall_plan_item (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ plan_id BIGINT UNSIGNED NOT NULL,
+ question_id VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ area VARCHAR(16) CHARACTER SET ascii NOT NULL DEFAULT '',
+ topic VARCHAR(120) NOT NULL DEFAULT '',
+ retrievability DOUBLE NOT NULL DEFAULT 0,
+ status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+ sent_at DATETIME(6) NULL,
+ conversation_id VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT '',
+ created_at DATETIME(6) NOT NULL,
+ cycle_no BIGINT UNSIGNED NOT NULL DEFAULT 1,
+ active_question VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin GENERATED ALWAYS AS (CASE WHEN status IN ('PENDING','SENT') THEN question_id ELSE NULL END) STORED,
+ UNIQUE KEY uk_plan_question_cycle(plan_id,question_id,cycle_no),
+ UNIQUE KEY uk_plan_active_question(plan_id,active_question),
+ KEY idx_plan_status(plan_id,status,id),
+ CONSTRAINT fk_recall_item_plan FOREIGN KEY(plan_id) REFERENCES recall_plan(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

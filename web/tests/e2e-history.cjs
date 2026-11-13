@@ -1,0 +1,6 @@
+const fs=require('node:fs'),vm=require('node:vm'),{parseHTML}=require('../node_modules/linkedom');
+const {window,document}=parseHTML(fs.readFileSync('web/index.html','utf8'));
+const context=vm.createContext({document,window,console,setTimeout,clearTimeout,TextDecoder,Uint8Array,AbortController,ReadableStream,URL,URLSearchParams,location:{search:""},localStorage:{getItem:()=>null,setItem:()=>{}},fetch:(path,opts)=>fetch('http://127.0.0.1:8085'+path,opts)});
+vm.runInContext(fs.readFileSync('web/app.js','utf8').replace(/\ninit\(\);\s*$/,''),context);
+(async()=>{await vm.runInContext('restoreSubmissions()',context);const result=vm.runInContext(`state.sessions.map(s=>({id:s.id,users:s.messages.filter(m=>m.role==='user').length,teachers:s.messages.filter(m=>m.role==='assistant').length,texts:s.messages.filter(m=>m.role==='assistant'&&m.type!=='solution').map(m=>m.text)}))`,context);const target=result.find(s=>s.id==='c_01a1b8e8f5387e1fa36e450b4ca9c6f7');if(!target||target.teachers<5)throw Error('missing durable replies');console.log(JSON.stringify({conversation:target.id,users:target.users,teachers:target.teachers,restoredFirstReply:target.texts[0]},null,2));})().catch(e=>{console.error(e);process.exitCode=1});
+

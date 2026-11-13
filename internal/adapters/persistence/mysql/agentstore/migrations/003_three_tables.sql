@@ -1,0 +1,66 @@
+-- Three-table Agent Store. Run buffers and model snapshots are not SQL records.
+CREATE TABLE IF NOT EXISTS agent_conversation (
+ scope_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+ namespace VARCHAR(64) NOT NULL,
+ subject_id VARCHAR(128) NOT NULL,
+ conversation_id VARCHAR(128) NOT NULL,
+ current_branch_id CHAR(36) CHARACTER SET ascii NOT NULL,
+ current_message_id CHAR(36) CHARACTER SET ascii NULL,
+ current_position BIGINT UNSIGNED NOT NULL DEFAULT 0,
+ version BIGINT UNSIGNED NOT NULL DEFAULT 0,
+ history_epoch BIGINT UNSIGNED NOT NULL DEFAULT 1,
+ active_run_id VARCHAR(128) CHARACTER SET ascii NULL,
+ status VARCHAR(24) NOT NULL DEFAULT 'ACTIVE',
+ memory_due_at DATETIME(6) NULL,
+ event_due_at DATETIME(6) NULL,
+ ext JSON NOT NULL,
+ created_at DATETIME(6) NOT NULL,
+ updated_at DATETIME(6) NOT NULL,
+ UNIQUE KEY uk_scope(namespace,subject_id,conversation_id),
+ KEY idx_memory_due(memory_due_at,scope_key),
+ KEY idx_event_due(event_due_at,scope_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE IF NOT EXISTS agent_message (
+ scope_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ message_id CHAR(36) CHARACTER SET ascii NOT NULL,
+ branch_id CHAR(36) CHARACTER SET ascii NOT NULL,
+ parent_message_id CHAR(36) CHARACTER SET ascii NULL,
+ position BIGINT UNSIGNED NULL,
+ version BIGINT UNSIGNED NOT NULL,
+ role VARCHAR(16) CHARACTER SET ascii NOT NULL,
+ status VARCHAR(24) CHARACTER SET ascii NOT NULL DEFAULT 'SEALED',
+ subject_scope CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
+ client_request_id VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+ content JSON NOT NULL,
+ ext JSON NOT NULL,
+ turn_id VARCHAR(128) CHARACTER SET ascii NOT NULL,
+ run_id VARCHAR(128) CHARACTER SET ascii NOT NULL,
+ turn_cursor BIGINT UNSIGNED NOT NULL,
+ content_hash CHAR(64) CHARACTER SET ascii NOT NULL,
+ prefix_hash CHAR(64) CHARACTER SET ascii NOT NULL,
+ created_at DATETIME(6) NOT NULL,
+ PRIMARY KEY(scope_key,message_id),
+ UNIQUE KEY uk_position(scope_key,branch_id,position),
+ UNIQUE KEY uk_turn_role(scope_key,turn_id,role),
+ UNIQUE KEY uk_query_request(subject_scope,client_request_id),
+ KEY idx_query_recent(subject_scope,created_at,message_id),
+ KEY idx_branch_version(scope_key,branch_id,version),
+ KEY idx_turn_cursor(scope_key,turn_cursor,role),
+ KEY idx_run(scope_key,run_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE IF NOT EXISTS agent_branch (
+ scope_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ branch_id CHAR(36) CHARACTER SET ascii NOT NULL,
+ parent_branch_id CHAR(36) CHARACTER SET ascii NULL,
+ fork_parent_message_id CHAR(36) CHARACTER SET ascii NULL,
+ fork_parent_position BIGINT UNSIGNED NULL,
+ fork_parent_version BIGINT UNSIGNED NULL,
+ last_position BIGINT UNSIGNED NOT NULL DEFAULT 0,
+ created_version BIGINT UNSIGNED NOT NULL,
+ op VARCHAR(24) CHARACTER SET ascii NOT NULL,
+ created_at DATETIME(6) NOT NULL,
+ PRIMARY KEY(scope_key,branch_id),
+ KEY idx_parent(scope_key,parent_branch_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

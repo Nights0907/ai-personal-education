@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contract_version": "1.0.0",
+  "description": "学生长期记忆的知识点大类与数学能力维度的标准化白名单。提取模型只能从本表中选择编码，服务端据此校验，杜绝模型杜撰分类。大类编码稳定、只增不改；子知识点允许新增。",
+  "knowledge_areas": [
+    { "code": "ALG", "name": "代数与方程" },
+    { "code": "FUNC", "name": "函数与图象" },
+    { "code": "SEQ", "name": "数列" },
+    { "code": "TRIG", "name": "三角函数" },
+    { "code": "VEC", "name": "平面向量" },
+    { "code": "SOLID", "name": "立体几何" },
+    { "code": "ANALYTIC", "name": "解析几何" },
+    { "code": "PROB", "name": "概率与统计" },
+    { "code": "CALC", "name": "导数与微积分" }
+  ],
+  "abilities": [
+    { "code": "AB-COMPUTE", "name": "运算求解" },
+    { "code": "AB-REASON", "name": "逻辑推理" },
+    { "code": "AB-MODEL", "name": "数学建模" },
+    { "code": "AB-SPACE", "name": "直观想象" },
+    { "code": "AB-DATA", "name": "数据分析" }
+  ],
+  "mastery_levels": [
+    { "code": "unseen", "name": "未接触" },
+    { "code": "familiar", "name": "已了解" },
+    { "code": "partial", "name": "基本掌握" },
+    { "code": "mastered", "name": "熟练掌握" }
+  ]
+}
