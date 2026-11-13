@@ -10,6 +10,104 @@
 
 > 这是持续演进的研究与工程实践项目。教育领域的演示功能不代表生产级教学质量保证；通用出题的模型复核也不是数学形式证明。
 
+## 功能预览
+
+以下为教育业务示例的实际界面，使用模拟学生测试数据；红色标注用于说明功能。点击分组展开，向下滚动查看，点击图片可查看原图。
+
+[智能体执行](#preview-agent) · [分层记忆与学生档案](#preview-memory) · [题目雷达](#preview-radar) · [模型与上下文配置](#preview-context)
+
+![题目雷达：历史题目、个性化变式与生成进度](docs/screenshots/question-radar.png)
+
+*题目雷达：从薄弱知识点关联题目生成新题，经校验后展示，答案默认隐藏。*
+
+<a id="preview-agent"></a>
+
+<details>
+<summary><strong>智能体执行与会话追踪</strong> · 点击展开效果图</summary>
+
+### 智能体执行过程
+
+技能加载、工具调用、正式保存和长期记忆提取节点。
+
+![智能体执行过程](docs/screenshots/agent-execution.png)
+
+### 会话执行记录
+
+查看每轮的上下文、技能加载、工具参数与返回结果。
+
+![会话执行记录](docs/screenshots/conversation-trace.png)
+
+</details>
+
+<a id="preview-memory"></a>
+
+<details>
+<summary><strong>L1—L3分层记忆与学生档案</strong> · 点击展开效果图</summary>
+
+### L1 · 个性化教学导航
+
+从L2提炼学习重点、已观察困难、支持需求和下一步教学行动。
+
+![L1 · 个性化教学导航](docs/screenshots/memory-l1.png)
+
+### L2 · 知识点档案
+
+查看知识点状态、独立作答与提示证据、错误记录和关联题目。
+
+![L2 · 知识点档案](docs/screenshots/memory-l2.png)
+
+### L3 · 原始会话证据
+
+按会话回溯学生原文、教师反馈与作答证据。
+
+![L3 · 原始会话证据](docs/screenshots/memory-l3.png)
+
+### 学生学习档案
+
+学习情况概览、知识点状态与防遗忘计划。
+
+![学生学习档案](docs/screenshots/student-profile.png)
+
+</details>
+
+<a id="preview-radar"></a>
+
+<details>
+<summary><strong>题目雷达：个性化出题</strong> · 点击展开效果图</summary>
+
+### 题目雷达
+
+从薄弱知识点生成变式题，查看历史题目与分阶段出题进度。
+
+![题目雷达](docs/screenshots/question-radar.png)
+
+</details>
+
+<a id="preview-context"></a>
+
+<details>
+<summary><strong>模型配置、提示词与上下文</strong> · 点击展开效果图</summary>
+
+### 按任务配置模型
+
+主对话、记忆提取与雷达出题分别配置模型服务。
+
+![按任务配置模型](docs/screenshots/model-settings.png)
+
+### 系统提示词编辑
+
+在线编辑共享静态提示词，后续请求应用新配置。
+
+![系统提示词编辑](docs/screenshots/prompt-editor.png)
+
+### 静态与动态上下文
+
+展开查看系统规则、技能目录、学生记忆与本轮任务的组织方式。
+
+![静态与动态上下文](docs/screenshots/system-context.png)
+
+</details>
+
 ## 你能从项目中了解什么
 
 | 主题 | 在项目中可以看到的实践 |
